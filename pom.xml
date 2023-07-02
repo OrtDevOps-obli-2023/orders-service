@@ -9,8 +9,8 @@
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>uy.edu.ort.devops</groupId>
-	<artifactId>orders-service-example</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
+	<artifactId>orders-service-example</artifactId> <!--pri-->
+	<version>0.0.1-SNAPSHOT</version> <!--Ultimo-->
 	<name>orders-service-example</name>
 	<description>Demo project for migrating Monolith to Microservices</description>
 	<properties>
