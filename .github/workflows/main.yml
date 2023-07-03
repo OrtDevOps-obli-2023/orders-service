@@ -10,6 +10,8 @@ env:
   ECR_REGISTRY: "${{ vars.ECR_REGISTRY }}"
   ECR_REPOSITORY: "${{ vars.ECR_REPOSITORY }}"
   AWS_REGION: "${{ vars.AWS_REGION }}"
+  APPROVERS: 'SebaORT,JNMiguel, deploy-approvers-fe-angular'
+  CI_ENV : 'staging'
 
 jobs:
   check-repo:
@@ -39,32 +41,37 @@ jobs:
     name: Prueba code static
     runs-on: ubuntu-latest
     steps:
-      - name: SonarQube
-        run: echo "Hola SonarQube"
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+      - name: Scan
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.TOKEN_API }}  # Needed to get PR information, if any
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
 
   approval:
     needs: [unit-test, code-test]
-    name: Approval
+    name: Request approval
     runs-on: ubuntu-latest
-      
+
     steps:
-      - name: Request approval
-        run: echo "Simular approve"
-        # id: approval
-        # uses: actions/github-script@v4
-        # with:
-        #   github-token: ${{ secrets.GITHUB_TOKEN }}
-        #   script: |
-        #     const { owner, repo } = context.repo;
-        #     const pull_number = context.payload.pull_request.number;
-        #     const response = await octokit.pulls.createReview({
-        #       owner,
-        #       repo,
-        #       pull_number,
-        #       event: 'APPROVE'
-        #     });
-        #     console.log(response);
+      - run: echo 'upload to ecr approve'
+      - uses: trstringer/manual-approval@v1.9.0
+        with:
+           secret: ${{ secrets.TOKEN_API }}
+           approvers: ${{ env.APPROVERS }}
+           issue-title: "Approve upload to ECR"
+           exclude-workflow-initiator-as-approver: false
+           # additional-approved-words: 'si'
+           # additional-denied-words: 'no'
+           minimum-approvals: 1
+    # steps:
+    #   - name: Request approval
+    #     run: echo "Simular approve"
+
 
   buil-push-ecr:
     needs: approval
