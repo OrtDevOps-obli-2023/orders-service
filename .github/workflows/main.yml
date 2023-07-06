@@ -1,0 +1,111 @@
+name: Push to ECR Products Service
+
+on:
+  push:
+    branches:
+      - main
+      - feature/*
+
+env:
+  ECR_REGISTRY: "${{ vars.ECR_REGISTRY }}"
+  ECR_REPOSITORY: "${{ vars.ECR_REPOSITORY }}"
+  AWS_REGION: "${{ vars.AWS_REGION }}"
+  APPROVERS: 'SebaORT,JNMiguel, deploy-approvers-fe-angular'
+  CI_ENV : 'staging'
+
+jobs:
+  check-repo:
+    name: Check Repo
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Create artifact repo
+        uses: actions/upload-artifact@v2
+        with:
+          name: checkout-repo
+          path: ${{ github.workspace }}
+
+  unit-test:
+    needs: check-repo
+    name: Pruebas Unitest
+    runs-on: ubuntu-latest
+    steps:
+      - name: Unit Test Java
+        run: echo "Hola UT Java"
+
+  code-test:
+    needs: check-repo
+    name: Prueba code static
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+      - name: Set up JDK
+        uses: actions/setup-java@v1
+        with:
+          java-version: '11'
+      - name: Analyze with SonarCloud
+        run: ./mvnw -B verify sonar:sonar -Dsonar.projectKey=OrtDevOps-obli-2023_fe-angular -Dsonar.organization=ortdevops-obli-2023 -Dsonar.host.url=https://sonarcloud.io -Dsonar.login=$SONAR_TOKEN
+      # - name: Scan
+      #   uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.TOKEN_API }}  # Needed to get PR information, if any
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+
+  approval:
+    needs: [unit-test, code-test]
+    name: Request approval
+    runs-on: ubuntu-latest
+
+    steps:
+      - run: echo 'upload to ecr approve'
+      - uses: trstringer/manual-approval@v1.9.0
+        with:
+           secret: ${{ secrets.TOKEN_API }}
+           approvers: ${{ env.APPROVERS }}
+           issue-title: "Approve upload to ECR"
+           exclude-workflow-initiator-as-approver: false
+           # additional-approved-words: 'si'
+           # additional-denied-words: 'no'
+           minimum-approvals: 1
+    # steps:
+    #   - name: Request approval
+    #     run: echo "Simular approve"
+
+
+  buil-push-ecr:
+    needs: approval
+    name: Etapa ECR AWS
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: checkout-repo
+          path: ${{ github.workspace }}
+
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login AWS ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build and push Docker image to ECR
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          push: true
+          tags: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
