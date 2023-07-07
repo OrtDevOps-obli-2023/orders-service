@@ -10,8 +10,8 @@ env:
   ECR_REGISTRY: "${{ vars.ECR_REGISTRY }}"
   ECR_REPOSITORY: "${{ vars.ECR_REPOSITORY }}"
   AWS_REGION: "${{ vars.AWS_REGION }}"
-  APPROVERS: 'SebaORT,JNMiguel, deploy-approvers-fe-angular'
-  CI_ENV : 'staging'
+  APPROVERS: "SebaORT,JNMiguel, deploy-approvers-fe-angular"
+  CI_ENV: "staging"
 
 jobs:
   check-repo:
@@ -33,21 +33,23 @@ jobs:
     name: Pruebas Unitest
     runs-on: ubuntu-latest
     steps:
-      - name: Set up JDK
-        uses: actions/setup-java@v1
-        with:
-          java-version: '11'
+      - name: "Run Tests"
+        uses: ./.github/actions/run-maven-tests
+      # - name: Set up JDK
+      #   uses: actions/setup-java@v1
+      #   with:
+      #     java-version: "11"
 
-      - name: Check out code
-        uses: actions/checkout@v2
+      # - name: Check out code
+      #   uses: actions/checkout@v2
 
-      - name: Build with Maven
-        run: mvn clean install
+      # - name: Build with Maven
+      #   run: mvn clean install
 
-      - name: Run Unit Tests
-        run: mvn test
+      # - name: Run Unit Tests
+      #   run: mvn test
 
-#sonarcloud test
+  #sonarcloud test
   code-test:
     needs: unit-test
     name: Prueba code static
@@ -56,19 +58,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
         with:
-          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+          fetch-depth: 0 # Shallow clones should be disabled for a better relevancy of analysis
       - name: Set up JDK
         uses: actions/setup-java@v1
         with:
-          java-version: '11'
+          java-version: "11"
       - name: Analyze with SonarCloud
-        run: ./mvnw -B verify sonar:sonar -Dsonar.projectKey=OrtDevOps-obli-2023_fe-angular -Dsonar.organization=ortdevops-obli-2023 -Dsonar.host.url=https://sonarcloud.io -Dsonar.login=$SONAR_TOKEN
-      # - name: Scan
-      #   uses: SonarSource/sonarcloud-github-action@master
+        run: ./.github/scripts/mavenAnalyze.sh
+        shell: bash
         env:
-          GITHUB_TOKEN: ${{ secrets.TOKEN_API }}  # Needed to get PR information, if any
+          PROJECT_KEY: ${{ vars.PROJECT_KEY_SONAR_CLOUD }}
+          ORG_NAME: ${{ vars.ORG_NAME }}
+          SONAR_HOST_URL: ${{vars.SONAR_HOST_URL}}
+          GITHUB_TOKEN: ${{ secrets.TOKEN_API }} # Needed to get PR information, if any
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
+        # run: ./mvnw -B verify sonar:sonar -Dsonar.projectKey=OrtDevOps-obli-2023_fe-angular -Dsonar.organization=ortdevops-obli-2023 -Dsonar.host.url=https://sonarcloud.io -Dsonar.login=$SONAR_TOKEN
+      # - name: Scan
+      #   uses: SonarSource/sonarcloud-github-action@master
 
   # approval:
   #   needs: code-test
@@ -86,10 +93,9 @@ jobs:
   #          # additional-approved-words: 'si'
   #          # additional-denied-words: 'no'
   #          minimum-approvals: 1
-    # steps:
-    #   - name: Request approval
-    #     run: echo "Simular approve"
-
+  # steps:
+  #   - name: Request approval
+  #     run: echo "Simular approve"
 
   buil-push-ecr:
     needs: code-test
@@ -118,6 +124,7 @@ jobs:
       - name: Build and push Docker image to ECR
         uses: docker/build-push-action@v2
         with:
+          #${{ github.sha }}
           context: .
           push: true
-          tags: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+          tags: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:orders-latest
