@@ -1,0 +1,1 @@
+mvnw -B verify sonar:sonar -Dsonar.projectKey=OrtDevOps-obli-2023_fe-angular -Dsonar.organization=ortdevops-obli-2023 -Dsonar.host.url=https://sonarcloud.io -Dsonar.login=$SONAR_TOKEN
