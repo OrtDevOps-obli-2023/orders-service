@@ -9,9 +9,6 @@ runs:
     with:
       java-version: "11"
 
-  - name: Check out code
-    uses: actions/checkout@v2
-
   - name: Build with Maven
     shell: bash
     run: mvn clean install
