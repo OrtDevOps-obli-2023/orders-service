@@ -1,4 +1,4 @@
-name: Push to ECR Products Service
+name: CI/CD Orders Service
 
 on:
   push:
@@ -47,19 +47,6 @@ jobs:
         uses: actions/checkout@v2
       - name: "Run Tests"
         uses: ./.github/actions/run-maven-tests
-      # - name: Set up JDK
-      #   uses: actions/setup-java@v1
-      #   with:
-      #     java-version: "11"
-
-      # - name: Check out code
-      #   uses: actions/checkout@v2
-
-      # - name: Build with Maven
-      #   run: mvn clean install
-
-      # - name: Run Unit Tests
-      #   run: mvn test
 
   #sonarcloud test
   code-test:
@@ -84,10 +71,6 @@ jobs:
           SONAR_HOST_URL: ${{vars.SONAR_HOST_URL}}
           GITHUB_TOKEN: ${{ secrets.TOKEN_API }} # Needed to get PR information, if any
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-
-        # run: ./mvnw -B verify sonar:sonar -Dsonar.projectKey=OrtDevOps-obli-2023_fe-angular -Dsonar.organization=ortdevops-obli-2023 -Dsonar.host.url=https://sonarcloud.io -Dsonar.login=$SONAR_TOKEN
-      # - name: Scan
-      #   uses: SonarSource/sonarcloud-github-action@master
 
   build-push-ecr:
     needs: code-test
