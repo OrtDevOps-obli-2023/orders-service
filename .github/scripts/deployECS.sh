@@ -1,0 +1,1 @@
+echo "Hello World Dummy deploy $IMAGE - $ARG2"
