@@ -1,4 +1,4 @@
-name: Push to ECR Products Service
+name: CI/CD Orders Service
 
 on:
   push:
@@ -9,9 +9,19 @@ on:
 env:
   ECR_REGISTRY: "${{ vars.ECR_REGISTRY }}"
   ECR_REPOSITORY: "${{ vars.ECR_REPOSITORY }}"
+  IMAGE_TAG: "${{ github.sha }}"
+  ECS_SERVICE: "MY_ECS_SERVICE" # set this to your Amazon ECS service name
+  ECS_CLUSTER: "MY_ECS_CLUSTER" # set this to your Amazon ECS cluster name
+  ECS_TASK_DEFINITION:
+    "MY_ECS_TASK_DEFINITION" # set this to the path to your Amazon ECS task definition
+    # file, e.g. .aws/task-definition.json
+  CONTAINER_NAME:
+    "MY_CONTAINER_NAME" # set this to the name of the container in the
+    # containerDefinitions section of your task definition
+
   AWS_REGION: "${{ vars.AWS_REGION }}"
-  APPROVERS: 'SebaORT,JNMiguel, deploy-approvers-fe-angular'
-  CI_ENV : 'staging'
+  APPROVERS: "SebaORT,JNMiguel, deploy-approvers-fe-angular"
+  CI_ENV: "staging"
 
 jobs:
   check-repo:
@@ -33,57 +43,41 @@ jobs:
     name: Pruebas Unitest
     runs-on: ubuntu-latest
     steps:
-      - name: Unit Test Java
-        run: echo "Hola UT Java"
+      - name: Check out code
+        uses: actions/checkout@v2
+      - name: "Run Tests"
+        uses: ./.github/actions/run-maven-tests
 
+  #sonarcloud test
   code-test:
-    needs: check-repo
+    needs: unit-test
     name: Prueba code static
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v2
         with:
-          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+          fetch-depth: 0 # Shallow clones should be disabled for a better relevancy of analysis
       - name: Set up JDK
         uses: actions/setup-java@v1
         with:
-          java-version: '11'
+          java-version: "11"
       - name: Analyze with SonarCloud
-        run: ./mvnw -B verify sonar:sonar -Dsonar.projectKey=OrtDevOps-obli-2023_fe-angular -Dsonar.organization=ortdevops-obli-2023 -Dsonar.host.url=https://sonarcloud.io -Dsonar.login=$SONAR_TOKEN
-      # - name: Scan
-      #   uses: SonarSource/sonarcloud-github-action@master
+        run: ./.github/scripts/mavenAnalyze.sh
+        shell: bash
         env:
-          GITHUB_TOKEN: ${{ secrets.TOKEN_API }}  # Needed to get PR information, if any
+          PROJECT_KEY: ${{ vars.PROJECT_KEY_SONAR_CLOUD }}
+          ORG_NAME: ${{ vars.ORG_NAME }}
+          SONAR_HOST_URL: ${{vars.SONAR_HOST_URL}}
+          GITHUB_TOKEN: ${{ secrets.TOKEN_API }} # Needed to get PR information, if any
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
-
-  approval:
-    needs: [unit-test, code-test]
-    name: Request approval
-    runs-on: ubuntu-latest
-
-    steps:
-      - run: echo 'upload to ecr approve'
-      - uses: trstringer/manual-approval@v1.9.0
-        with:
-           secret: ${{ secrets.TOKEN_API }}
-           approvers: ${{ env.APPROVERS }}
-           issue-title: "Approve upload to ECR"
-           exclude-workflow-initiator-as-approver: false
-           # additional-approved-words: 'si'
-           # additional-denied-words: 'no'
-           minimum-approvals: 1
-    # steps:
-    #   - name: Request approval
-    #     run: echo "Simular approve"
-
-
-  buil-push-ecr:
-    needs: approval
+  build-push-ecr:
+    needs: code-test
     name: Etapa ECR AWS
     runs-on: ubuntu-latest
-
+    outputs:
+      image: ${{ steps.setImageOutput.outputs.image }}
     steps:
       - name: Download artifact
         uses: actions/download-artifact@v2
@@ -103,9 +97,67 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
 
+      - name: Set Image Output
+        id: setImageOutput
+        env:
+          ECR_REGISTRY: ${{ env.ECR_REGISTRY }}
+          ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
+          IMAGE_TAG: ${{ env.IMAGE_TAG }}
+        run: |
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
       - name: Build and push Docker image to ECR
         uses: docker/build-push-action@v2
         with:
           context: .
           push: true
-          tags: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+          tags: ${{ steps.setImageOutput.outputs.image }}
+  dev:
+    needs: build-push-ecr
+    uses: ./.github/workflows/deploy.yml
+    with:
+      CI_ENV: "dev"
+      IMAGE: "${{ vars.ECR_REGISTRY }}/${{ vars.ECR_REPOSITORY }}:${{ github.sha }}"
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN}}
+      AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+      TOKEN_API: ${{ secrets.TOKEN_API }}
+      ECS_SERVICE: "service" # set this to your Amazon ECS service name
+      ECS_CLUSTER: "cluster" # set this to your Amazon ECS cluster name
+      ECS_TASK_DEFINITION: "task-definition" # set this to the path to your Amazon ECS task definition
+      CONTAINER_NAME: "container" # set this to the name of the container in the
+
+  staging:
+    needs: [dev, build-push-ecr]
+    uses: ./.github/workflows/deploy.yml
+    with:
+      CI_ENV: "staging"
+      IMAGE: ${{needs.build-push-ecr.outputs.image}}
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN}}
+      AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+      TOKEN_API: ${{ secrets.TOKEN_API }}
+      ECS_SERVICE: "service" # set this to your Amazon ECS service name
+      ECS_CLUSTER: "cluster" # set this to your Amazon ECS cluster name
+      ECS_TASK_DEFINITION: "task-definition" # set this to the path to your Amazon ECS task definition
+      CONTAINER_NAME: "container" # set this to the name of the container in the
+  prod:
+    needs: [staging, build-push-ecr]
+    uses: ./.github/workflows/deploy.yml
+    with:
+      CI_ENV: "prod"
+      IMAGE: ${{needs.build-push-ecr.outputs.image}}
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN}}
+      AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+      TOKEN_API: ${{ secrets.TOKEN_API }}
+      ECS_SERVICE: "service" # set this to your Amazon ECS service name
+      ECS_CLUSTER: "cluster" # set this to your Amazon ECS cluster name
+      ECS_TASK_DEFINITION: "task-definition" # set this to the path to your Amazon ECS task definition
+      CONTAINER_NAME: "container" # set this to the name of the container in the
