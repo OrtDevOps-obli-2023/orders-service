@@ -61,12 +61,6 @@ jobs:
           aws-secret-access-key: ${{secrets.AWS_SECRET_ACCESS_KEY}}
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: ${{secrets.AWS_DEFAULT_REGION}}
-      - name: Deploy to ECS
-        run: ./.github/scripts/deployECS.sh
-        shell: bash
-        env:
-          IMAGE: ${{ inputs.IMAGE }}
-          ARG2: ${{ inputs.CI_ENV }}
 
       - name: Download task definition
         run: |
