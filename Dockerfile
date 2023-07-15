@@ -27,4 +27,7 @@ WORKDIR /app
 COPY --from=build /app/target/orders-service-example-0.0.1-SNAPSHOT.jar .
 
 # Establecer el comando de inicio de la aplicación
-CMD java -jar orders-service-example-0.0.1-SNAPSHOT.jar $APP_ARGS
+
+CMD java -jar orders-service-example-0.0.1-SNAPSHOT.jar--server.port=80 $APP_ARGS
+
+#CMD java -jar orders-service-example-0.0.1-SNAPSHOT.jar $APP_ARGS
