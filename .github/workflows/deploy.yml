@@ -54,11 +54,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      #   - name: Download build artifacts
-      #     uses: actions/download-artifact@v2
-      #     with:
-      #       name: ${{ inputs.ARTIFACT_NAME }}
-      #       path: generated
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
@@ -66,25 +61,29 @@ jobs:
           aws-secret-access-key: ${{secrets.AWS_SECRET_ACCESS_KEY}}
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: ${{secrets.AWS_DEFAULT_REGION}}
-      - name: Deploy to ECS
-        run: ./.github/scripts/deployECS.sh
-        shell: bash
-        env:
-          IMAGE: ${{ inputs.IMAGE }}
-          ARG2: ${{ inputs.CI_ENV }}
 
-    #   - name: Fill in the new image ID in the Amazon ECS task definition
-    #     id: task-def
-    #     uses: aws-actions/amazon-ecs-render-task-definition@c804dfbdd57f713b6c079302a4c01db7017a36fc
-    #     with:
-    #       task-definition: ${{ env.ECS_TASK_DEFINITION }}
-    #       container-name: ${{ env.CONTAINER_NAME }}
-    #       image: ${{ inputs.IMAGE }}
+      - name: Download task definition
+        run: |
+          aws ecs describe-task-definition --task-definition ${{ vars.CLUSTER_TASK_DEF_FAMILY_PREFIX }}${{ github.event.repository.name }}-${{ inputs.CI_ENV }}  \
+          --query taskDefinition > task-definition.json
+      - name: Show task definition
+        run: |
+            # Perform actions using the task-definition.json file
+            # For example, print the content of the file
+            cat task-definition.json
+      - name: Fill in the new image ID in the Amazon ECS task definition
+        
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-definition.json
+          container-name: ${{ vars.CLUSTER_TASK_DEF_CONTAINER_PREFIX }}${{ github.event.repository.name }}-${{ inputs.CI_ENV }}
+          image: ${{ inputs.IMAGE }}
 
-    #   - name: Deploy Amazon ECS task definition
-    #     uses: aws-actions/amazon-ecs-deploy-task-definition@df9643053eda01f169e64a0e60233aacca83799a
-    #     with:
-    #       task-definition: ${{ steps.task-def.outputs.task-definition }}
-    #       service: ${{ env.ECS_SERVICE }}
-    #       cluster: ${{ env.ECS_CLUSTER }}
-    #       wait-for-service-stability: true
+      - name: Deploy Amazon ECS task definition
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service: ${{ vars.CLUSTER_SERVICE_PREFIX }}${{ github.event.repository.name }}-${{ inputs.CI_ENV }}
+          cluster: ${{ vars.CLUSTER_PREFIX }}${{ inputs.CI_ENV }}
+          wait-for-service-stability: true

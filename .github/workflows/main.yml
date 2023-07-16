@@ -10,14 +10,6 @@ env:
   ECR_REGISTRY: "${{ vars.ECR_REGISTRY }}"
   ECR_REPOSITORY: "${{ vars.ECR_REPOSITORY }}"
   IMAGE_TAG: "${{ github.sha }}"
-  ECS_SERVICE: "MY_ECS_SERVICE" # set this to your Amazon ECS service name
-  ECS_CLUSTER: "MY_ECS_CLUSTER" # set this to your Amazon ECS cluster name
-  ECS_TASK_DEFINITION:
-    "MY_ECS_TASK_DEFINITION" # set this to the path to your Amazon ECS task definition
-    # file, e.g. .aws/task-definition.json
-  CONTAINER_NAME:
-    "MY_CONTAINER_NAME" # set this to the name of the container in the
-    # containerDefinitions section of your task definition
 
   AWS_REGION: "${{ vars.AWS_REGION }}"
   APPROVERS: "SebaORT,JNMiguel, deploy-approvers-fe-angular"
@@ -107,9 +99,10 @@ jobs:
           echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
       - name: Build and push Docker image to ECR
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v3
         with:
           context: .
+          file: Dockerfile
           push: true
           tags: ${{ steps.setImageOutput.outputs.image }}
   dev:
@@ -134,7 +127,7 @@ jobs:
     uses: ./.github/workflows/deploy.yml
     with:
       CI_ENV: "staging"
-      IMAGE: ${{needs.build-push-ecr.outputs.image}}
+      IMAGE: "${{ vars.ECR_REGISTRY }}/${{ vars.ECR_REPOSITORY }}:${{ github.sha }}"
     secrets:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -150,7 +143,7 @@ jobs:
     uses: ./.github/workflows/deploy.yml
     with:
       CI_ENV: "prod"
-      IMAGE: ${{needs.build-push-ecr.outputs.image}}
+      IMAGE: "${{ vars.ECR_REGISTRY }}/${{ vars.ECR_REPOSITORY }}:${{ github.sha }}"
     secrets:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
